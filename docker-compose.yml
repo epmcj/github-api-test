@@ -1,0 +1,10 @@
+vesion: '3'
+services:
+        server:
+                build:
+                        dockerfile: ./Dockerfile
+                        context: .
+                image: epmcj/github-api-test
+                container_name: server
+                ports:
+                        - '3000:3000'
