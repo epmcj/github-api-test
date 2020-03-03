@@ -2,6 +2,15 @@
 const util = require ('util');
 const https = require ('https');
 const express = require ('express');
+let request_headers = {
+    'User-Agent': 'epmcj'
+};
+try {
+    const auth_headers = require ('./auth_headers');
+    request_headers = auth_headers;
+} catch (error) {
+    console.log ('Using default request (may reach GitHub limit faster)');
+}
 
 // MUST HANDLE ERRORS
 // + PRESENT DATA
@@ -12,10 +21,7 @@ function getUserInfo (login) {
             'host': 'api.github.com',
             'path': `/users/${login}`,
             'method': 'GET',
-            'headers': {
-                'User-Agent': 'epmcj',
-                'Authorization': 'token 1fc1ee02fece6bd9c8967fdd559ca3300d131b6b'
-            }
+            'headers': request_headers
         };
         
         https.get (userReq, (res) => {
@@ -33,11 +39,11 @@ function getUserInfo (login) {
                     let userRcvd = JSON.parse (data);
                     return resolve ({
                         'login': userRcvd.login,
-                        'email': userRcvd.email,
-                        'location': userRcvd.location,
+                        'email': userRcvd.email ? userRcvd.email : '?',
+                        'location': userRcvd.location ? userRcvd.location : '?',
                         'follows': userRcvd.following,
                         'followers': userRcvd.followers,
-                        'public_repos': userRcvd.public_repos
+                        'public_repos': userRcvd.public_repos ? userRcvd.public_repos : '?'
                     });
                 } catch (err) {
                     reject (new Error (data));
@@ -57,10 +63,7 @@ function getUserPublicRepos (login, callback) {
         'host': 'api.github.com',
         'path': `/users/${login}/repos`,
         'method': 'GET',
-        'headers': {
-            'User-Agent': 'epmcj',
-            'Authorization': 'token 1fc1ee02fece6bd9c8967fdd559ca3300d131b6b'
-        }
+        'headers': request_headers
     };
     
     https.get (reposReq, (res) => {
@@ -79,7 +82,7 @@ function getUserPublicRepos (login, callback) {
                 return callback (null, repos);
             } catch (err) {
                 return callback (
-                    `Failed to get ${login} public repos.`, 
+                    `Failed to get ${login} public repos: ${err}`, 
                     err
                 );
             }
@@ -121,6 +124,20 @@ app.set ('view engine', 'jade');
 //     next ();
 // })
 
+app.get ('/', (req, res) => {
+    res.render ('index', {
+        'title': 'Hello!',
+        'message': "Welcome to my GitHub API test. Use /user/<login> to search."
+    });
+});
+
+app.get ('/user/', (req, res) => {
+    res.render ('index', {
+        'title': 'Ops!',
+        'message': "You missed the login. Try again: /user/<login>"
+    });
+});
+
 app.get ('/user/:login', (req, res) => {
     let login = req.params.login;
     console.log (`login=${login}`);
@@ -139,25 +156,18 @@ app.get ('/user/:login', (req, res) => {
     //     'title': login, 
     //     'user': user // JSON.stringify (user)
     // });
-    if (login) {
-        consultGitHub (login).then ((user) => {
-            res.render ('user', {
-                'title': login, 
-                'user': user // JSON.stringify (user)
-            });
-        })
-        .catch ((error) => {
-            res.render ('index', {
-                'title':'Ops!',
-                'message': "User not found!"
-            });
+    consultGitHub (login).then ((user) => {
+        res.render ('user', {
+            'title': login, 
+            'user': user // JSON.stringify (user)
         });
-    } else {
+    })
+    .catch ((error) => {
         res.render ('index', {
-            'title': 'Hello!',
-            'message': "Welcome to my GitHub API test!"
+            'title':'Ops!',
+            'message': "User not found!"
         });
-    }
+    });
 });
 
 app.listen (port, () => {
